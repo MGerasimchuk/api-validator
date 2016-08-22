@@ -3,6 +3,7 @@ namespace ElevenLabs\Api;
 
 use ElevenLabs\Api\Definition\RequestDefinition;
 use ElevenLabs\Api\Definition\RequestDefinitions;
+use ElevenLabs\Api\Definition\VendorDefinition;
 use Rize\UriTemplate;
 
 class Schema implements \Serializable
@@ -19,20 +20,30 @@ class Schema implements \Serializable
     /** @var array */
     private $schemes;
 
+    /** @var VendorDefinition[] */
+    private $vendorDefinitions;
+
     /**
      * @param RequestDefinitions $requestDefinitions
      * @param string $basePath
      * @param string $host
      * @param array $schemes
+     * @param VendorDefinition[] $vendorDefinitions
      */
-    public function __construct(RequestDefinitions $requestDefinitions, $basePath = '', $host = null, array $schemes = ['http'])
-    {
+    public function __construct(
+        RequestDefinitions $requestDefinitions,
+        $basePath = '',
+        $host = null,
+        array $schemes = ['http'],
+        array $vendorDefinitions = []
+    ) {
         foreach ($requestDefinitions as $request) {
             $this->addRequestDefinition($request);
         }
         $this->host = $host;
         $this->basePath = $basePath;
         $this->schemes = $schemes;
+        $this->vendorDefinitions = $vendorDefinitions;
     }
 
     /**
@@ -96,13 +107,30 @@ class Schema implements \Serializable
         return $this->schemes;
     }
 
+    /**
+     * @param $vendorName
+     *
+     * @return VendorDefinition
+     */
+    public function getVendorDefinition($vendorName)
+    {
+        if (isset($this->vendorDefinitions[$vendorName])) {
+            throw new \InvalidArgumentException(
+                'No vendor definition available for '.$vendorName
+            );
+        }
+
+        return $this->vendorDefinitions[$vendorName];
+    }
+
     public function serialize()
     {
         return serialize([
             'host' => $this->host,
             'basePath' => $this->basePath,
             'schemes' => $this->schemes,
-            'requests' => $this->requestDefinitions
+            'requests' => $this->requestDefinitions,
+            'vendorDefinitions' => $this->vendorDefinitions
         ]);
     }
 
@@ -113,6 +141,7 @@ class Schema implements \Serializable
         $this->basePath = $data['basePath'];
         $this->schemes = $data['schemes'];
         $this->requestDefinitions = $data['requests'];
+        $this->vendorDefinitions = $data['vendorDefinitions'];
     }
 
     private function addRequestDefinition(RequestDefinition $request)
