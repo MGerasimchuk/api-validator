@@ -1,8 +1,10 @@
 <?php
 namespace ElevenLabs\Api\Definition;
 
-class ResponseDefinition implements \Serializable, MessageDefinition
+class ResponseDefinition implements \Serializable, MessageDefinition, ProvideVendorProperties
 {
+    use VendorProperties;
+
     /** @var int */
     private $statusCode;
 

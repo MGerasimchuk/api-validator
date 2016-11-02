@@ -1,13 +1,21 @@
 <?php
 namespace ElevenLabs\Api\Definition;
 
-class RequestDefinition implements \Serializable, MessageDefinition
+class RequestDefinition implements \Serializable, MessageDefinition, ProvideVendorProperties
 {
+    use VendorProperties;
+
     /** @var string */
     private $method;
 
     /** @var string */
     private $operationId;
+
+    /** @var string */
+    private $summary;
+
+    /** @var string */
+    private $description;
 
     /** @var string */
     private $pathTemplate;
@@ -21,24 +29,67 @@ class RequestDefinition implements \Serializable, MessageDefinition
     /** @var ResponseDefinition[] */
     private $responses;
 
+    /** @var Security[] */
+    private $supportedSecurities = [];
+
+    /** @var array */
+    private $tags;
+
     /**
-     * @param string $method
-     * @param string $operationId
-     * @param string $pathTemplate
+     * RequestDefinition constructor.
+     * @param $method
+     * @param $operationId
+     * @param $summary
+     * @param $description
+     * @param $pathTemplate
      * @param Parameters $parameters
      * @param array $contentTypes
      * @param ResponseDefinition[] $responses
+     * @param Security[] $supportedSecurities
+     * @param array $tags
      */
-    public function __construct($method, $operationId, $pathTemplate, Parameters $parameters, array $contentTypes, array $responses)
-    {
+    public function __construct(
+        $method,
+        $operationId,
+        $summary,
+        $description,
+        $pathTemplate,
+        Parameters $parameters,
+        array $contentTypes,
+        array $responses,
+        array $supportedSecurities,
+        array $tags
+    ) {
         $this->method = $method;
         $this->operationId = $operationId;
+        $this->summary = $summary ?: $operationId;
+        $this->description = $description ?: '';
         $this->pathTemplate = $pathTemplate;
         $this->parameters = $parameters;
         $this->contentTypes = $contentTypes;
+        $this->tags = $tags;
         foreach ($responses as $response) {
             $this->addResponseDefinition($response);
         }
+        foreach ($supportedSecurities as $security) {
+            $this->addSecurity($security);
+        }
+    }
+
+    private function addSecurity(Security $security)
+    {
+        $this->supportedSecurities[$security->getKey()] = $security;
+    }
+
+    public function supportSecurityType($type)
+    {
+        foreach ($this->supportedSecurities as $security) {
+            if ($type === $security->getScheme()->getType()) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -55,6 +106,22 @@ class RequestDefinition implements \Serializable, MessageDefinition
     public function getOperationId()
     {
         return $this->operationId;
+    }
+
+    /**
+     * @return string
+     */
+    public function getSummary()
+    {
+        return $this->summary;
+    }
+
+    /**
+     * @return string
+     */
+    public function getDescription()
+    {
+        return $this->description;
     }
 
     /**
@@ -84,12 +151,23 @@ class RequestDefinition implements \Serializable, MessageDefinition
     }
 
     /**
-     * @param $statusCode
+     * @param int $statusCode
+     *
+     * @return bool
+     */
+    public function hasResponseDefinition($statusCode)
+    {
+        return isset($this->responses[$statusCode]);
+    }
+
+    /**
+     * @param int $statusCode
+     *
      * @return ResponseDefinition
      */
     public function getResponseDefinition($statusCode)
     {
-        if (!isset($this->responses[$statusCode])) {
+        if (!$this->hasResponseDefinition($statusCode)) {
             throw new \InvalidArgumentException(
                 sprintf(
                     'No response definition for %s %s is available for status code %s',
@@ -131,6 +209,14 @@ class RequestDefinition implements \Serializable, MessageDefinition
     public function getQueryParametersSchema()
     {
         return $this->parameters->getQueryParametersSchema();
+    }
+
+    /**
+     * @return array
+     */
+    public function getTags()
+    {
+        return $this->tags;
     }
 
     private function addResponseDefinition(ResponseDefinition $response)

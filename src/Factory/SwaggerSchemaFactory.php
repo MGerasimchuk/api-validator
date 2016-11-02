@@ -1,11 +1,15 @@
 <?php
 namespace ElevenLabs\Api\Factory;
 
+use ElevenLabs\Api\Definition\Info;
 use ElevenLabs\Api\Definition\RequestDefinition;
 use ElevenLabs\Api\Definition\Parameter;
 use ElevenLabs\Api\Definition\Parameters;
 use ElevenLabs\Api\Definition\RequestDefinitions;
 use ElevenLabs\Api\Definition\ResponseDefinition;
+use ElevenLabs\Api\Definition\Security;
+use ElevenLabs\Api\Definition\SecurityDefinitions;
+use ElevenLabs\Api\Definition\SecurityScheme;
 use ElevenLabs\Api\Schema;
 use ElevenLabs\Api\JsonSchema\Uri\YamlUriRetriever;
 use JsonSchema\RefResolver;
@@ -30,11 +34,37 @@ class SwaggerSchemaFactory implements SchemaFactory
         $basePath = (isset($schema->basePath)) ? $schema->basePath : '';
         $schemes = (isset($schema->schemes)) ? $schema->schemes : ['http'];
 
+        $info = new Info(
+            $schema->info->title,
+            $schema->info->version,
+            $schema->info->description
+        );
+
+        $securityDefinitions = [];
+        if ($schema->securityDefinitions !== null) {
+            foreach ($schema->securityDefinitions as $key => $securityScheme) {
+                $securityDefinitions[] = new SecurityScheme(
+                    $key,
+                    $securityScheme->type,
+                    $securityScheme->description,
+                    $securityScheme->name,
+                    $securityScheme->in,
+                    $securityScheme->flow,
+                    $securityScheme->authorizationUrl,
+                    $securityScheme->tokenUrl,
+                    $securityScheme->scopes ?: []
+                );
+            }
+        }
+        $securityDefinitions = new SecurityDefinitions($securityDefinitions);
+
         return new Schema(
-            $this->createRequestDefinitions($schema),
+            $info,
+            $this->createRequestDefinitions($schema, $securityDefinitions),
             $basePath,
             $host,
-            $schemes
+            $schemes,
+            $securityDefinitions
         );
     }
 
@@ -79,13 +109,16 @@ class SwaggerSchemaFactory implements SchemaFactory
 
     /**
      * @param \stdClass $schema
+     * @param SecurityDefinitions $securityDefinitions
+     *
      * @return RequestDefinitions
      */
-    protected function createRequestDefinitions(\stdClass $schema)
+    protected function createRequestDefinitions(\stdClass $schema, SecurityDefinitions $securityDefinitions)
     {
         $definitions = [];
         $defaultConsumedContentTypes = [];
         $defaultProducedContentTypes = [];
+        $defaultSecurities = [];
 
         if (isset($schema->consumes)) {
             $defaultConsumedContentTypes = $schema->consumes;
@@ -94,15 +127,41 @@ class SwaggerSchemaFactory implements SchemaFactory
             $defaultProducedContentTypes = $schema->produces;
         }
 
+        if ($schema->security !== null) {
+            foreach ($schema->security as $security) {
+                $key = key($security);
+                $defaultSecurities[] = new Security(
+                    $key,
+                    $security->{$key},
+                    $securityDefinitions->getSecurityScheme($key)
+                );
+            }
+        }
+
         $basePath = (isset($schema->basePath)) ? $schema->basePath : '';
 
         foreach ($schema->paths as $pathTemplate => $methods) {
 
             foreach ($methods as $method => $definition) {
                 $method = strtoupper($method);
+
                 $contentTypes = $defaultConsumedContentTypes;
                 if (isset($definition->consumes)) {
                     $contentTypes = $definition->consumes;
+                }
+
+                $supportedSecurities = [];
+                if ($definition->security !== null) {
+                    foreach ($definition->security as $security) {
+                        $key = key($security);
+                        $supportedSecurities[] = new Security(
+                            $key,
+                            $security->{$key},
+                            $securityDefinitions->getSecurityScheme($key)
+                        );
+                    }
+                } else {
+                    $supportedSecurities = $defaultSecurities;
                 }
 
                 if (!isset($definition->operationId)) {
@@ -153,14 +212,21 @@ class SwaggerSchemaFactory implements SchemaFactory
                     );
                 }
 
-                $definitions[] = new RequestDefinition(
+                $requestDefinition = new RequestDefinition(
                     $method,
                     $definition->operationId,
+                    $definition->summary,
+                    $definition->description,
                     $basePath.$pathTemplate,
                     new Parameters($requestParameters),
                     $contentTypes,
-                    $responseDefinitions
+                    $responseDefinitions,
+                    $supportedSecurities,
+                    $definition->tags ?: []
                 );
+                $requestDefinition->setVendorProperties($this->getVendorProperties($definition));
+
+                $definitions[] = $requestDefinition;
             }
         }
 
@@ -172,6 +238,14 @@ class SwaggerSchemaFactory implements SchemaFactory
         $schema = null;
         $allowedContentTypes = $defaultProducedContentTypes;
         $parameters = [];
+        $vendorProperties = [];
+
+        foreach ($response as $key => $value) {
+            if (strpos($key, 'x-') === 0) {
+                $vendorProperties[$key] = $value;
+            }
+        }
+
         if (isset($response->schema)) {
             $parameters[] = $this->createParameter((object) [
                 'in' => 'body',
@@ -192,7 +266,10 @@ class SwaggerSchemaFactory implements SchemaFactory
             $allowedContentTypes = $defaultProducedContentTypes;
         }
 
-        return new ResponseDefinition($statusCode, $allowedContentTypes, new Parameters($parameters));
+        $responseDefinition = new ResponseDefinition($statusCode, $allowedContentTypes, new Parameters($parameters));
+        $responseDefinition->setVendorProperties($this->getVendorProperties($response));
+
+        return $responseDefinition;
     }
 
     /**
@@ -225,6 +302,25 @@ class SwaggerSchemaFactory implements SchemaFactory
             $schema = null;
         }
 
-        return new Parameter($location, $name, $required, $schema);
+        $aParameter = new Parameter($location, $name, $required, $schema);
+        $aParameter->setVendorProperties($this->getVendorProperties($parameter));
+
+        return $aParameter;
+    }
+
+    /**
+     * @param array|\stdClass $object
+     * @return array
+     */
+    protected function getVendorProperties($object)
+    {
+        $vendorProperties = [];
+        foreach ($object as $key => $value) {
+            if (strpos($key, 'x-') === 0) {
+                $vendorProperties[$key] = $value;
+            }
+        }
+
+        return $vendorProperties;
     }
 }

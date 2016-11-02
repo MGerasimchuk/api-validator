@@ -1,8 +1,10 @@
 <?php
 namespace ElevenLabs\Api\Definition;
 
-class Parameter implements \Serializable
+class Parameter implements \Serializable, ProvideVendorProperties
 {
+    use VendorProperties;
+
     /**
      * Location of the parameter in the request
      *
@@ -83,7 +85,7 @@ class Parameter implements \Serializable
             'location' => $this->location,
             'name' => $this->name,
             'required' => $this->required,
-            'schema' => $this->schema
+            'schema' => $this->schema,
         ]);
     }
 

@@ -1,12 +1,18 @@
 <?php
 namespace ElevenLabs\Api;
 
+use ElevenLabs\Api\Definition\Info;
 use ElevenLabs\Api\Definition\RequestDefinition;
 use ElevenLabs\Api\Definition\RequestDefinitions;
+use ElevenLabs\Api\Definition\SecurityDefinitions;
+use ElevenLabs\Api\Definition\SecurityScheme;
 use Rize\UriTemplate;
 
 class Schema implements \Serializable
 {
+    /** @var Info */
+    private $info;
+
     /** @var RequestDefinitions */
     private $requestDefinitions = [];
 
@@ -19,20 +25,42 @@ class Schema implements \Serializable
     /** @var array */
     private $schemes;
 
+    /** @var SecurityDefinitions */
+    private $securityDefinitions;
+
     /**
+     * Schema constructor.
+     * @param Info $info
      * @param RequestDefinitions $requestDefinitions
      * @param string $basePath
-     * @param string $host
+     * @param null $host
      * @param array $schemes
+     * @param SecurityDefinitions $securityDefinitions
      */
-    public function __construct(RequestDefinitions $requestDefinitions, $basePath = '', $host = null, array $schemes = ['http'])
-    {
+    public function __construct(
+        Info $info,
+        RequestDefinitions $requestDefinitions,
+        $basePath,
+        $host,
+        array $schemes = ['http'],
+        SecurityDefinitions $securityDefinitions
+    ) {
         foreach ($requestDefinitions as $request) {
             $this->addRequestDefinition($request);
         }
-        $this->host = $host;
-        $this->basePath = $basePath;
+        $this->info = $info;
+        $this->host = $host ?: '';
+        $this->basePath = $basePath ?: '';
         $this->schemes = $schemes;
+        $this->securityDefinitions = $securityDefinitions;
+    }
+
+    /**
+     * @return SecurityDefinitions
+     */
+    public function getSecurityDefinitions()
+    {
+        return $this->securityDefinitions;
     }
 
     /**
@@ -59,6 +87,14 @@ class Schema implements \Serializable
         }
 
         throw new \InvalidArgumentException('Unable to resolve the operationId for path ' . $path);
+    }
+
+    /**
+     * @return Info
+     */
+    public function getInfo()
+    {
+        return $this->info;
     }
 
     public function getRequestDefinition($operationId)
@@ -92,6 +128,14 @@ class Schema implements \Serializable
     public function getSchemes()
     {
         return $this->schemes;
+    }
+
+    /**
+     * @return RequestDefinitions
+     */
+    public function getRequestDefinitions()
+    {
+        return $this->requestDefinitions;
     }
 
     public function serialize()
