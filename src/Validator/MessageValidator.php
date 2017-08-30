@@ -99,7 +99,7 @@ class MessageValidator
         $isValid = true;
         $contentType = $message->getHeaderLine('Content-Type');
 
-        if (! in_array($contentType, $definition->getContentTypes())) {
+        if (! empty($contentType) && ! in_array($contentType, $definition->getContentTypes())) {
             $isValid = false;
 
             if ($contentType === '') {

@@ -6,7 +6,7 @@ class Parameters implements \Serializable, \IteratorAggregate
     /**
      * @var Parameter[]
      */
-    private $parameters;
+    private $parameters = [];
 
     public function __construct(array $parameters)
     {

@@ -120,7 +120,16 @@ class RequestDefinition implements \Serializable, MessageDefinition
 
     public function getHeadersSchema()
     {
-        return $this->parameters->getHeadersSchema();
+        $asArr               = (array)$this->parameters->getHeadersSchema();
+        $asArr['properties'] = (array)$asArr['properties'];
+
+        foreach ($asArr['required'] as $key => $value) {
+            $asArr['required'][$key] = strtolower($value);
+        }
+        $asArr['properties'] = array_change_key_case($asArr['properties'], CASE_LOWER);
+        $asArr['properties'] = (object)$asArr['properties'];
+
+        return (object)$asArr;
     }
 
     public function hasQueryParametersSchema()

@@ -115,16 +115,6 @@ class SwaggerSchemaFactory implements SchemaFactory
                     );
                 }
 
-                if (empty($contentTypes)) {
-                    throw new \LogicException(
-                        sprintf(
-                            'You need to specify at least one ContentType for %s %s',
-                            $method,
-                            $pathTemplate
-                        )
-                    );
-                }
-
                 if (!isset($definition->responses)) {
                     throw new \LogicException(
                         sprintf(
